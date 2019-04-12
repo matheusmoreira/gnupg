@@ -40,6 +40,32 @@
 #include "../common/i18n.h"
 #include "call-agent.h"
 
+static gpg_error_t
+gpg_agent_delete_secret_key (ctrl_t ctrl, PKT_public_key *public_key)
+{
+  gpg_error_t err;
+  char *prompt;
+  char *hexgrip;
+
+  if (agent_probe_secret_key (NULL, public_key))
+    return gpg_error (GPG_ERR_NO_SECKEY);
+
+  prompt = gpg_format_keydesc (ctrl, public_key, FORMAT_KEYDESC_DELKEY, 1);
+
+  err = hexkeygrip_from_pk (public_key, &hexgrip);
+
+  /* NB: We require --yes to advise the agent not to request a confirmation.
+   * The rationale for this extra pre-caution is that since 2.1 the secret key
+   * may also be used for other protocols and thus deleting it from the gpg
+   * would also delete the key for other tools. */
+  if (!err)
+    err = agent_delete_key (NULL, hexgrip, prompt, opt.answer_yes);
+
+  xfree (prompt);
+  xfree (hexgrip);
+
+  return err;
+}
 
 /****************
  * Delete a public or secret key from a keyring.
@@ -165,9 +191,7 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
     {
       if (secret)
 	{
-          char *prompt;
           gpg_error_t firsterr = 0;
-          char *hexgrip;
 
           setup_main_keyids (keyblock);
           for (kbctx=NULL; (node = walk_kbnode (keyblock, &kbctx, 0)); )
@@ -176,24 +200,12 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
                     || node->pkt->pkttype == PKT_PUBLIC_SUBKEY))
                 continue;
 
-              if (agent_probe_secret_key (NULL, node->pkt->pkt.public_key))
-                continue;  /* No secret key for that public (sub)key.  */
+              err = gpg_agent_delete_secret_key (ctrl, node->pkt->pkt.public_key);
 
-              prompt = gpg_format_keydesc (ctrl,
-                                           node->pkt->pkt.public_key,
-                                           FORMAT_KEYDESC_DELKEY, 1);
-              err = hexkeygrip_from_pk (node->pkt->pkt.public_key, &hexgrip);
-              /* NB: We require --yes to advise the agent not to
-               * request a confirmation.  The rationale for this extra
-               * pre-caution is that since 2.1 the secret key may also
-               * be used for other protocols and thus deleting it from
-               * the gpg would also delete the key for other tools. */
-              if (!err)
-                err = agent_delete_key (NULL, hexgrip, prompt,
-                                        opt.answer_yes);
-              xfree (prompt);
-              xfree (hexgrip);
-              if (err)
+              if (err == GPG_ERR_NO_SECKEY)
+                continue; /* No secret key for that public (sub)key.  */
+
+              else if (err)
                 {
                   if (gpg_err_code (err) == GPG_ERR_KEY_ON_CARD)
                     write_status_text (STATUS_DELETE_PROBLEM, "1");
