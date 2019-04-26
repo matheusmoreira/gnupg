@@ -40,6 +40,55 @@
 #include "../common/i18n.h"
 #include "call-agent.h"
 
+/* Determines whether to skip the deletion of the key at PK.
+   Returns true if the search description at DESC is an exact key specification
+   that doesn't match the key at PK. */
+static int
+should_skip (KEYDB_SEARCH_DESC *desc, PKT_public_key *pk)
+{
+  u32 kid[2];
+  byte fpr[MAX_FINGERPRINT_LEN];
+  size_t fprlen;
+
+  if (!desc->exact)
+    return 0;
+
+  switch(desc->mode)
+    {
+    case KEYDB_SEARCH_MODE_SHORT_KID:
+    case KEYDB_SEARCH_MODE_LONG_KID:
+      keyid_from_pk (pk, kid);
+      break;
+
+    case KEYDB_SEARCH_MODE_FPR:
+      fingerprint_from_pk (pk, fpr, &fprlen);
+      if (fprlen == desc->fprlen && !memcmp (desc->u.fpr, fpr, desc->fprlen))
+        return 0;
+      break;
+
+    default:
+      break;
+    }
+
+  switch(desc->mode)
+    {
+    case KEYDB_SEARCH_MODE_SHORT_KID:
+      if (desc->u.kid[1] == kid[1])
+        return 0;
+      break;
+
+    case KEYDB_SEARCH_MODE_LONG_KID:
+      if (desc->u.kid[0] == kid[0] && desc->u.kid[1] == kid[1])
+        return 0;
+      break;
+
+    default:
+      break;
+    }
+
+  return 1;
+}
+
 static gpg_error_t
 gpg_agent_delete_secret_key (ctrl_t ctrl, PKT_public_key *public_key)
 {
@@ -198,6 +247,9 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
             {
               if (!(node->pkt->pkttype == PKT_PUBLIC_KEY
                     || node->pkt->pkttype == PKT_PUBLIC_SUBKEY))
+                continue;
+
+              if (should_skip (&desc, node->pkt->pkt.public_key))
                 continue;
 
               err = gpg_agent_delete_secret_key (ctrl, node->pkt->pkt.public_key);
