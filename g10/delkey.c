@@ -67,6 +67,38 @@ agent_delete_secret_key (ctrl_t ctrl, PKT_public_key *pk, int stubs_only)
   return err;
 }
 
+static int
+confirm_deletion(ctrl_t ctrl, PACKET *pkt, int secret, int fingerprint)
+{
+  int yes = 0;
+
+  if (opt.batch)
+    {
+      if (secret)
+        return fingerprint;
+      else
+        return opt.answer_yes || fingerprint;
+    }
+
+  print_key_info (ctrl, NULL, 0, pkt->pkt.public_key, secret);
+  tty_printf( "\n" );
+
+  yes = cpr_get_answer_is_yes (secret? "delete_key.secret.okay": "delete_key.okay",
+                               _("Delete this key from the keyring? (y/N) "));
+
+  if (!cpr_enabled() && secret && yes)
+    {
+      /* I think it is not required to check a passphrase; if the
+       * user is so stupid as to let others access his secret
+       * keyring (and has no backup) - it is up him to read some
+       * very basic texts about security.  */
+      yes = cpr_get_answer_is_yes ("delete_key.secret.okay",
+                                   _("This is a secret key! - really delete? (y/N) "));
+    }
+
+  return yes;
+}
+
 /****************
  * Delete a public or secret key from a keyring.
  * r_sec_avail will be set if a secret key is available and the public
@@ -85,7 +117,6 @@ do_delete_key (ctrl_t ctrl, const char *username,
   PKT_public_key *pk = NULL;
   u32 keyid[2];
   int okay=0;
-  int yes;
   KEYDB_SEARCH_DESC desc;
   int exactmatch;  /* True if key was found by fingerprint.  */
   int thiskeyonly; /* 0 = false, 1 = is primary key, 2 = is a subkey.  */
@@ -192,9 +223,11 @@ do_delete_key (ctrl_t ctrl, const char *username,
       log_info (_("(unless you specify the key by fingerprint)\n"));
     }
   else
+    okay++;
+
+  if (okay)
     {
-      print_key_info (ctrl, NULL, 0, pk, secret);
-      tty_printf ("\n");
+
       if (thiskeyonly == 1 && !secret)
         {
           /* We need to delete the entire public key despite the use
@@ -218,31 +251,7 @@ do_delete_key (ctrl_t ctrl, const char *username,
                         " will be deleted.\n"));
         }
 
-      if (thiskeyonly)
-        tty_printf ("\n");
 
-      yes = cpr_get_answer_is_yes
-        (secret? "delete_key.secret.okay": "delete_key.okay",
-         _("Delete this key from the keyring? (y/N) "));
-
-      if (!cpr_enabled() && secret && yes)
-        {
-          /* I think it is not required to check a passphrase; if the
-           * user is so stupid as to let others access his secret
-           * keyring (and has no backup) - it is up him to read some
-           * very basic texts about security.  */
-          yes = cpr_get_answer_is_yes
-            ("delete_key.secret.okay",
-             _("This is a secret key! - really delete? (y/N) "));
-	}
-
-      if (yes)
-        okay++;
-    }
-
-
-  if (okay)
-    {
       if (secret)
 	{
           gpg_error_t firsterr = 0;
@@ -260,31 +269,36 @@ do_delete_key (ctrl_t ctrl, const char *username,
               if (subkeys_only && node->pkt->pkttype != PKT_PUBLIC_SUBKEY)
                 continue;
 
-              err = agent_delete_secret_key (ctrl,
-                                             node->pkt->pkt.public_key,
-                                             stubs_only);
-
-              if (err == GPG_ERR_NO_SECKEY)
-                continue; /* No secret key for that public (sub)key.  */
-
-              else if (err)
+              if (confirm_deletion (ctrl, node->pkt, secret, exactmatch))
                 {
-                  if (gpg_err_code (err) == GPG_ERR_KEY_ON_CARD)
-                    write_status_text (STATUS_DELETE_PROBLEM, "1");
-                  log_error (_("deleting secret %s failed: %s\n"),
-                             (node->pkt->pkttype == PKT_PUBLIC_KEY
-                              ? _("key"):_("subkey")),
-                             gpg_strerror (err));
-                  if (!firsterr)
-                    firsterr = err;
-                  if (gpg_err_code (err) == GPG_ERR_CANCELED
-                      || gpg_err_code (err) == GPG_ERR_FULLY_CANCELED)
-		    {
-		      write_status_error ("delete_key.secret", err);
-		      break;
-		    }
-                }
+                  err = agent_delete_secret_key (ctrl,
+                                                 node->pkt->pkt.public_key,
+                                                 stubs_only);
 
+                  if (err == GPG_ERR_NO_SECKEY)
+                    continue; /* No secret key for that public (sub)key.  */
+
+                  else if (err)
+                    {
+                      if (gpg_err_code (err) == GPG_ERR_KEY_ON_CARD)
+                        write_status_text (STATUS_DELETE_PROBLEM, "1");
+
+                      log_error (_("deleting secret %s failed: %s\n"),
+                                 (node->pkt->pkttype == PKT_PUBLIC_KEY
+                                  ? _("key") : _("subkey")),
+                                 gpg_strerror (err));
+
+                      if (!firsterr)
+                        firsterr = err;
+
+                      if (gpg_err_code (err) == GPG_ERR_CANCELED
+                          || gpg_err_code (err) == GPG_ERR_FULLY_CANCELED)
+		                    {
+		                      write_status_error ("delete_key.secret", err);
+		                      break;
+		                    }
+                    }
+                }
             }
 
           err = firsterr;
@@ -305,7 +319,12 @@ do_delete_key (ctrl_t ctrl, const char *username,
                 {
                   selected = targetnode == node;
                   if (selected)
-                    delete_kbnode (node);
+                    {
+                      if (confirm_deletion (ctrl, node->pkt, secret, exactmatch))
+                        delete_kbnode (node);
+                      else
+                        selected = 0; /* Canceled: don't delete signatures. */
+                    }
                 }
               else if (selected && node->pkt->pkttype == PKT_SIGNATURE)
                 delete_kbnode (node);
@@ -322,13 +341,16 @@ do_delete_key (ctrl_t ctrl, const char *username,
         }
       else
 	{
-	  err = keydb_delete_keyblock (hd);
-	  if (err)
-            {
-              log_error (_("deleting keyblock failed: %s\n"),
-                         gpg_strerror (err));
-              goto leave;
-            }
+    if (confirm_deletion (ctrl, targetnode->pkt, secret, exactmatch))
+      {
+        err = keydb_delete_keyblock (hd);
+        if (err)
+          {
+            log_error (_("deleting keyblock failed: %s\n"),
+                       gpg_strerror (err));
+            goto leave;
+          }
+      }
 	}
 
       /* Note that the ownertrust being cleared will trigger a
