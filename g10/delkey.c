@@ -117,7 +117,7 @@ gpg_agent_delete_secret_key (ctrl_t ctrl, PKT_public_key *public_key)
 }
 
 static int
-confirm_deletion(ctrl_t ctrl, PKT_public_key *pk, int secret, int fingerprint)
+confirm_deletion(ctrl_t ctrl, PACKET *pkt, int secret, int fingerprint)
 {
   int yes = 0;
 
@@ -129,20 +129,26 @@ confirm_deletion(ctrl_t ctrl, PKT_public_key *pk, int secret, int fingerprint)
         return opt.answer_yes || fingerprint;
     }
 
-  print_key_info (ctrl, NULL, 0, pk, secret);
+  print_key_info (ctrl, NULL, 0, pkt->pkt.public_key, secret);
   tty_printf( "\n" );
 
   yes = cpr_get_answer_is_yes (secret? "delete_key.secret.okay": "delete_key.okay",
                                _("Delete this key from the keyring? (y/N) "));
 
-  if (!cpr_enabled() && secret && yes)
+  if (!cpr_enabled() && secret)
     {
       /* I think it is not required to check a passphrase; if the
        * user is so stupid as to let others access his secret
        * keyring (and has no backup) - it is up him to read some
        * very basic texts about security.  */
-      yes = cpr_get_answer_is_yes ("delete_key.secret.okay",
-                                   _("This is a secret key! - really delete? (y/N) "));
+      if (yes)
+        yes = cpr_get_answer_is_yes ("delete_key.secret.okay",
+                                     _("This is a secret key! - really delete? (y/N) "));
+
+      /* Extra confirmation before deleting the user's primary key. */
+      if (yes && pkt->pkttype != PKT_PUBLIC_SUBKEY)
+        yes = cpr_get_answer_is_yes ("delete_key.secret.primary.okay",
+                                     _("This is the primary key! - really delete? (y/N) "));
     }
 
   return yes;
@@ -256,7 +262,7 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
               if (should_skip (&desc, node->pkt->pkt.public_key))
                 continue;
 
-              if (confirm_deletion (ctrl, node->pkt->pkt.public_key, secret, exactmatch))
+              if (confirm_deletion (ctrl, node->pkt, secret, exactmatch))
                 {
                   err = gpg_agent_delete_secret_key (ctrl, node->pkt->pkt.public_key);
 
@@ -292,7 +298,7 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
 	}
       else
 	{
-    if (confirm_deletion (ctrl, pk, secret, exactmatch))
+    if (confirm_deletion (ctrl, node->pkt, secret, exactmatch))
       {
         err = opt.dry_run? 0 : keydb_delete_keyblock (hd);
         if (err)
