@@ -1660,6 +1660,10 @@ msgstr "Remover esta chave do porta-chaves?"
 msgid "This is a secret key! - really delete? (y/N) "
 msgstr "Esta chave é secreta! - apagar de qualquer modo? "
 
+#, fuzzy
+msgid "This is the primary key! - really delete? (y/N) "
+msgstr "Esta chave é primária! - apagar de qualquer modo? "
+
 #, fuzzy, c-format
 msgid "deleting secret %s failed: %s\n"
 msgstr "remoção do bloco de chave falhou: %s\n"
