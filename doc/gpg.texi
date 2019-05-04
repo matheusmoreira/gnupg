@@ -421,13 +421,24 @@ fingerprint of a subkey only the secret part of that subkey is
 deleted; if the exclamation mark is used with the fingerprint of the
 primary key only the secret part of the primary key is deleted.
 
-
 @item --delete-secret-and-public-key @var{name}
 @opindex delete-secret-and-public-key
 Same as @option{--delete-key}, but if a secret key exists, it will be
 removed first. In batch mode the key must be specified by fingerprint.
 The option @option{--yes} can be used to advice gpg-agent not to
 request a confirmation.
+
+@item --delete-secret-subkeys @var{name}
+@opindex delete-secret-subkeys
+Remove subkeys from the secret keyring. In batch mode the subkey must be
+specified by fingerprint. The option @option{--yes} can be used to
+advice gpg-agent not to request a confirmation. This extra
+pre-caution is done because @command{@gpgname} can't be sure that the
+secret subkey (as controlled by gpg-agent) is only used for the given
+OpenPGP public key. If the exclamation mark syntax is used with the
+fingerprint of a subkey only the secret part of that subkey is
+deleted; if the exclamation mark is used with the fingerprint of the
+primary key nothing will be done.
 
 @item --export
 @opindex export

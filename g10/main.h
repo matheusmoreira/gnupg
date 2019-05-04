@@ -304,7 +304,7 @@ gpg_error_t check_signature_over_key_or_uid (ctrl_t ctrl,
 
 /*-- delkey.c --*/
 gpg_error_t delete_keys (ctrl_t ctrl,
-                         strlist_t names, int secret, int allow_both);
+                         strlist_t names, int secret, int allow_both, int subkeys_only);
 
 /*-- keygen.c --*/
 const char *get_default_pubkey_algo (void);

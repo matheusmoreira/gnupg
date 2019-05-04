@@ -140,6 +140,7 @@ enum cmd_and_opt_values
     aEditKey,
     aDeleteKeys,
     aDeleteSecretKeys,
+    aDeleteSecretSubkeys,
     aDeleteSecretAndPublicKeys,
     aImport,
     aFastImport,
@@ -482,6 +483,8 @@ static ARGPARSE_OPTS opts[] = {
               N_("remove keys from the public keyring")),
   ARGPARSE_c (aDeleteSecretKeys, "delete-secret-keys",
               N_("remove keys from the secret keyring")),
+  ARGPARSE_c (aDeleteSecretSubkeys, "delete-secret-subkeys",
+              N_("remove subkeys from the secret keyring")),
   ARGPARSE_c (aQuickSignKey,  "quick-sign-key" ,
               N_("quickly sign a key")),
   ARGPARSE_c (aQuickLSignKey, "quick-lsign-key",
@@ -2653,6 +2656,7 @@ main (int argc, char **argv)
 	  case aFullKeygen:
 	  case aEditKey:
 	  case aDeleteSecretKeys:
+    case aDeleteSecretSubkeys:
 	  case aDeleteSecretAndPublicKeys:
 	  case aDeleteKeys:
           case aPasswd:
@@ -4205,6 +4209,7 @@ main (int argc, char **argv)
       case aEditKey:
       case aPasswd:
       case aDeleteSecretKeys:
+      case aDeleteSecretSubkeys:
       case aDeleteSecretAndPublicKeys:
       case aQuickKeygen:
       case aQuickAddUid:
@@ -4492,6 +4497,7 @@ main (int argc, char **argv)
 
       case aDeleteKeys:
       case aDeleteSecretKeys:
+      case aDeleteSecretSubkeys:
       case aDeleteSecretAndPublicKeys:
 	sl = NULL;
 	/* I'm adding these in reverse order as add_to_strlist2
@@ -4500,7 +4506,9 @@ main (int argc, char **argv)
 	for( ; argc; argc-- )
 	  add_to_strlist2( &sl, argv[argc-1], utf8_strings );
 	delete_keys (ctrl, sl,
-                     cmd==aDeleteSecretKeys, cmd==aDeleteSecretAndPublicKeys);
+                     cmd == aDeleteSecretKeys || cmd == aDeleteSecretSubkeys,
+                     cmd == aDeleteSecretAndPublicKeys,
+                     cmd == aDeleteSecretSubkeys);
 	free_strlist(sl);
 	break;
 

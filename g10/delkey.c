@@ -73,7 +73,8 @@ agent_delete_secret_key (ctrl_t ctrl, PKT_public_key *pk)
  * key can't be deleted for that reason.
  */
 static gpg_error_t
-do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
+do_delete_key (ctrl_t ctrl, const char *username,
+               int secret, int force, int subkeys_only,
                int *r_sec_avail)
 {
   gpg_error_t err;
@@ -256,6 +257,9 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
               if (thiskeyonly && targetnode != node)
                 continue;
 
+              if (subkeys_only && node->pkt->pkttype != PKT_PUBLIC_SUBKEY)
+                continue;
+
               err = agent_delete_secret_key (ctrl, node->pkt->pkt.public_key);
 
               if (err == GPG_ERR_NO_SECKEY)
@@ -348,7 +352,7 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
  * Delete a public or secret key from a keyring.
  */
 gpg_error_t
-delete_keys (ctrl_t ctrl, strlist_t names, int secret, int allow_both)
+delete_keys (ctrl_t ctrl, strlist_t names, int secret, int allow_both, int subkeys_only)
 {
   gpg_error_t err;
   int avail;
@@ -359,14 +363,14 @@ delete_keys (ctrl_t ctrl, strlist_t names, int secret, int allow_both)
 
   for ( ;names ; names=names->next )
     {
-      err = do_delete_key (ctrl, names->d, secret, force, &avail);
+      err = do_delete_key (ctrl, names->d, secret, force, subkeys_only, &avail);
       if (err && avail)
         {
           if (allow_both)
             {
-              err = do_delete_key (ctrl, names->d, 1, 0, &avail);
+              err = do_delete_key (ctrl, names->d, 1, 0, subkeys_only, &avail);
               if (!err)
-                err = do_delete_key (ctrl, names->d, 0, 0, &avail);
+                err = do_delete_key (ctrl, names->d, 0, 0, subkeys_only, &avail);
             }
           else
             {

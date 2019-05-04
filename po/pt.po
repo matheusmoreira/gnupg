@@ -1995,6 +1995,9 @@ msgstr "remover chaves do porta-chaves público"
 msgid "remove keys from the secret keyring"
 msgstr "remover chaves do porta-chaves secreto"
 
+msgid "remove subkeys from the secret keyring"
+msgstr "remover subchaves do porta-chaves secreto"
+
 #, fuzzy
 #| msgid "sign a key"
 msgid "quickly sign a key"
