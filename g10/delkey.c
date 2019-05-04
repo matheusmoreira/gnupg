@@ -44,11 +44,22 @@
    Returns true if the search description at DESC is an exact key specification
    that doesn't match the key at PK. */
 static int
-should_skip (KEYDB_SEARCH_DESC *desc, PKT_public_key *pk)
+should_skip (KEYDB_SEARCH_DESC *desc, PACKET *pkt, int subkeys_only)
 {
   u32 kid[2];
   byte fpr[MAX_FINGERPRINT_LEN];
   size_t fprlen;
+
+  if (subkeys_only)
+    {
+      if (pkt->pkttype != PKT_PUBLIC_SUBKEY)
+        return 1;
+    }
+  else
+    {
+      if (!(pkt->pkttype == PKT_PUBLIC_KEY || pkt->pkttype == PKT_PUBLIC_SUBKEY))
+        return 1;
+    }
 
   if (!desc->exact)
     return 0;
@@ -57,11 +68,11 @@ should_skip (KEYDB_SEARCH_DESC *desc, PKT_public_key *pk)
     {
     case KEYDB_SEARCH_MODE_SHORT_KID:
     case KEYDB_SEARCH_MODE_LONG_KID:
-      keyid_from_pk (pk, kid);
+      keyid_from_pk (pkt->pkt.public_key, kid);
       break;
 
     case KEYDB_SEARCH_MODE_FPR:
-      fingerprint_from_pk (pk, fpr, &fprlen);
+      fingerprint_from_pk (pkt->pkt.public_key, fpr, &fprlen);
       if (fprlen == desc->fprlen && !memcmp (desc->u.fpr, fpr, desc->fprlen))
         return 0;
       break;
@@ -160,7 +171,8 @@ confirm_deletion(ctrl_t ctrl, PACKET *pkt, int secret, int fingerprint)
  * key can't be deleted for that reason.
  */
 static gpg_error_t
-do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
+do_delete_key (ctrl_t ctrl, const char *username,
+               int secret, int force, int subkeys_only,
                int *r_sec_avail)
 {
   gpg_error_t err;
@@ -255,11 +267,7 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
           setup_main_keyids (keyblock);
           for (kbctx=NULL; (node = walk_kbnode (keyblock, &kbctx, 0)); )
             {
-              if (!(node->pkt->pkttype == PKT_PUBLIC_KEY
-                    || node->pkt->pkttype == PKT_PUBLIC_SUBKEY))
-                continue;
-
-              if (should_skip (&desc, node->pkt->pkt.public_key))
+              if (should_skip (&desc, node->pkt, subkeys_only))
                 continue;
 
               if (confirm_deletion (ctrl, node->pkt, secret, exactmatch))
@@ -331,7 +339,7 @@ do_delete_key (ctrl_t ctrl, const char *username, int secret, int force,
  * Delete a public or secret key from a keyring.
  */
 gpg_error_t
-delete_keys (ctrl_t ctrl, strlist_t names, int secret, int allow_both)
+delete_keys (ctrl_t ctrl, strlist_t names, int secret, int allow_both, int subkeys_only)
 {
   gpg_error_t err;
   int avail;
@@ -342,14 +350,14 @@ delete_keys (ctrl_t ctrl, strlist_t names, int secret, int allow_both)
 
   for ( ;names ; names=names->next )
     {
-      err = do_delete_key (ctrl, names->d, secret, force, &avail);
+      err = do_delete_key (ctrl, names->d, secret, force, subkeys_only, &avail);
       if (err && avail)
         {
           if (allow_both)
             {
-              err = do_delete_key (ctrl, names->d, 1, 0, &avail);
+              err = do_delete_key (ctrl, names->d, 1, 0, subkeys_only, &avail);
               if (!err)
-                err = do_delete_key (ctrl, names->d, 0, 0, &avail);
+                err = do_delete_key (ctrl, names->d, 0, 0, subkeys_only, &avail);
             }
           else
             {
