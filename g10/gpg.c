@@ -141,6 +141,7 @@ enum cmd_and_opt_values
     aDeleteKeys,
     aDeleteSecretKeys,
     aDeleteSecretSubkeys,
+    aDeleteSecretKeyStubs,
     aDeleteSecretAndPublicKeys,
     aImport,
     aFastImport,
@@ -485,6 +486,8 @@ static ARGPARSE_OPTS opts[] = {
               N_("remove keys from the secret keyring")),
   ARGPARSE_c (aDeleteSecretSubkeys, "delete-secret-subkeys",
               N_("remove subkeys from the secret keyring")),
+  ARGPARSE_c (aDeleteSecretKeyStubs, "delete-secret-key-stubs",
+              N_("remove key stubs from the secret keyring")),
   ARGPARSE_c (aQuickSignKey,  "quick-sign-key" ,
               N_("quickly sign a key")),
   ARGPARSE_c (aQuickLSignKey, "quick-lsign-key",
@@ -2657,6 +2660,7 @@ main (int argc, char **argv)
 	  case aEditKey:
 	  case aDeleteSecretKeys:
     case aDeleteSecretSubkeys:
+    case aDeleteSecretKeyStubs:
 	  case aDeleteSecretAndPublicKeys:
 	  case aDeleteKeys:
           case aPasswd:
@@ -4210,6 +4214,7 @@ main (int argc, char **argv)
       case aPasswd:
       case aDeleteSecretKeys:
       case aDeleteSecretSubkeys:
+      case aDeleteSecretKeyStubs:
       case aDeleteSecretAndPublicKeys:
       case aQuickKeygen:
       case aQuickAddUid:
@@ -4498,6 +4503,7 @@ main (int argc, char **argv)
       case aDeleteKeys:
       case aDeleteSecretKeys:
       case aDeleteSecretSubkeys:
+      case aDeleteSecretKeyStubs:
       case aDeleteSecretAndPublicKeys:
 	sl = NULL;
 	/* I'm adding these in reverse order as add_to_strlist2
@@ -4506,9 +4512,12 @@ main (int argc, char **argv)
 	for( ; argc; argc-- )
 	  add_to_strlist2( &sl, argv[argc-1], utf8_strings );
 	delete_keys (ctrl, sl,
-                     cmd == aDeleteSecretKeys || cmd == aDeleteSecretSubkeys,
+                     (cmd == aDeleteSecretKeys
+                      || cmd == aDeleteSecretSubkeys
+                      || cmd == aDeleteSecretKeyStubs),
                      cmd == aDeleteSecretAndPublicKeys,
-                     cmd == aDeleteSecretSubkeys);
+                     cmd == aDeleteSecretSubkeys,
+                     cmd == aDeleteSecretKeyStubs);
 	free_strlist(sl);
 	break;
 
