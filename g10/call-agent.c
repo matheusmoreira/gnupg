@@ -2575,7 +2575,7 @@ confirm_status_cb (void *opaque, const char *line)
    confirmation. */
 gpg_error_t
 agent_delete_key (ctrl_t ctrl, const char *hexkeygrip, const char *desc,
-                  int force)
+                  int force, int stubs_only)
 {
   gpg_error_t err;
   char line[ASSUAN_LINELENGTH];
@@ -2603,8 +2603,11 @@ agent_delete_key (ctrl_t ctrl, const char *hexkeygrip, const char *desc,
         return err;
     }
 
-  snprintf (line, DIM(line), "DELETE_KEY%s %s",
-            force? " --force":"", hexkeygrip);
+  snprintf (line, DIM(line),
+            "DELETE_KEY%s%s %s",
+            force? " --force" : "",
+            stubs_only? " --stub-only" : "",
+            hexkeygrip);
   err = assuan_transact (agent_ctx, line, NULL, NULL,
                          default_inq_cb, &dfltparm,
                          confirm_status_cb, &confirm_parm);

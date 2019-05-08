@@ -440,6 +440,16 @@ fingerprint of a subkey only the secret part of that subkey is
 deleted; if the exclamation mark is used with the fingerprint of the
 primary key nothing will be done.
 
+@item --delete-secret-key-stubs @var{name}
+@opindex delete-secret-subkeys
+Remove key stubs from the secret keyring. In batch mode the subkey must be
+specified by fingerprint. The option @option{--yes} can be used to
+advice gpg-agent not to request a confirmation. This extra
+pre-caution is done because @command{@gpgname} can't be sure that the
+secret subkey (as controlled by gpg-agent) is only used for the given
+OpenPGP public key. If the exclamation mark syntax is used with the
+fingerprint of a secret key only that key's stub will be deleted.
+
 @item --export
 @opindex export
 Either export all keys from all keyrings (default keyrings and those
